@@ -10,6 +10,7 @@ import threading
 from DBFacde import DBFacade
 db = DBFacade()
 
+
 # 插入记录
 db.insert_record(answer_list)       
 参数：[(Name, TTL, Class, Type, Value), ...]
@@ -25,9 +26,14 @@ db.query(Name, Type)
 没有找到记录返回 []
 
 
+# 更新TTL-1，减到0就删除这条记录，应该每秒调用一次这个函数
+db.update_TTL()
+
+
 # 插入日志
 db.insert_log(addr.ip, addr.port, Name, True/False)
 参数：请求方的ip,port,请求的域名，DNSRelay是否向DNSServer请求的标志。日志记录会自动加入这条日志的产生时间。
+
 
 # 获取日志
 db.search_log(self, start_time, end_time)
@@ -48,7 +54,7 @@ class DBFacade(object):
 
     def __init__(self):
         try:
-            self._db = sqlite3.connect('db_dnsRelay.db')
+            self._db = sqlite3.connect('db_dnsRelay.db', check_same_thread = False)
         except:
             print("Database Error!")
             exit(8)
@@ -202,6 +208,34 @@ class DBFacade(object):
         else:
             pass
         return res
+    
+    #TTL-1，减到0就删除这条记录
+    def update_TTL(self):
+        self._lock.acquire()
+        query = '''
+        update Records
+        set TTL = TTL - 1
+        '''
+        try:
+            self._cursor.execute(query)
+            self._db.commit()
+            print('minus ttl')
+        except Exception as e:
+            print(e)
+        
+        query = '''
+        delete from Records
+        where TTL <= 0
+        '''
+        try:
+            self._cursor.execute(query)
+            self._db.commit()
+            print('delete if needed')
+        except Exception as e:
+            print(e)
+        
+        self._lock.release()
+
 
     def create_table(self):
         query = '''
@@ -234,6 +268,7 @@ class DBFacade(object):
             self._db.commit()
         except Exception as e:
             print(e)
+
 
 '''
 db = DBFacade()
