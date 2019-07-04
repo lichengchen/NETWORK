@@ -19,7 +19,7 @@ db.get_value(Name, Type)            参数：两个str   返回值：str
 db.insert_log(addr.ip, addr.port, Name, True/False)
 参数：请求方的ip,port,请求的域名，DNSRelay是否向DNSServer请求的标志。日志记录会自动加入这条日志的产生时间。
 
-#获取日志
+# 获取日志
 db.search_log(self, start_time, end_time)
 参数：要查询的起止时间（格式为标准时间字符串--形如'2019-07-01 00:00:00'）
 返回：list，每一项为 (time, addr.ip, addr.port, Name, True/False)
