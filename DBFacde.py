@@ -7,7 +7,7 @@ import threading
 数据库模块
 
 # 其他模块的调用方法
-import db from DBFacde
+from DBFacde import db
 
 # 插入记录
 db.insert_record(answer_list)       参数：list，每一项为五个域的tuple(Name, TTL, Class, Type, Value)
