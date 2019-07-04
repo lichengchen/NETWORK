@@ -235,7 +235,7 @@ class DBFacade(object):
         except Exception as e:
             print(e)
 
-
+'''
 db = DBFacade()
 
 #db.create_table()      #首次运行后请注释
@@ -257,3 +257,4 @@ db.insert_log('127.1.1.1', 8080, 'www.baidu.com', False)
 dic = db.search_log('2019-07-01 00:00:00', time.strftime("%Y-%m-%d %H:%M:%S",db.localTime()))
 print('查到', len(dic), '条日志')
 print('最后一条：', dic[-1])
+'''
