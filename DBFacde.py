@@ -13,7 +13,7 @@ import db from DBFacde
 db.insert_record(answer_list)       参数：list，每一项为五个域的tuple(Name, TTL, Class, Type, Value)
 
 # 由 name type 查询 value 值
-db.get_value(Name, Type)            参数：两个str
+db.get_value(Name, Type)            参数：两个str   返回值：str
 
 # 插入日志
 db.insert_log(addr.ip, addr.port, Name, True/False)
@@ -128,7 +128,7 @@ class DBFacade(object):
         self._cursor.execute(query)
         res = self._cursor.fetchall()
         if res == None:
-            res = ()
+            res = []
         else:
             pass
         return res
@@ -173,7 +173,7 @@ db = DBFacade()
 db.create_table()      #首次运行后请注释
 
 #test
-
+'''
 record1 = ('name', 1 ,'in', 'a', '111.1.1.1')
 record2 = ('name', 2, 'in', 'a', '222.2.2.2')
 record3 = ('www.baidu.com', 3, 'in', 'a', '123.1.2.3')
@@ -182,8 +182,6 @@ records = [record1, record2,record3]
 db.insert_records(records)
 
 print(db.get_value('name', 'a'))
-
-
 print(db.get_value('没有这个域名', 'a'))
 print(db.get_value('www.baidu.com', 'a'))
 print(db.get_value('www.baidu1.com', 'a'))
@@ -194,3 +192,4 @@ db.insert_log('127.1.1.1', 8080, 'www.baidu.com', False)
 dic = db.search_log('2019-07-01 00:00:00', time.strftime("%Y-%m-%d %H:%M:%S",db.localTime()))
 print('查到', len(dic), '条日志')
 print('最后一条：', dic[-1])
+'''
