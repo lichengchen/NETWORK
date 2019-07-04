@@ -19,7 +19,7 @@ db.insert_record(answer_list)
 # 查询：按 Type 对 Name 进行一次查询，返回整个记录 
 db.query(Name, Type)
 参数：两个str  
-返回值：[(Name, TTL, Class, Type, Value), ...]
+返回值：[[Name, TTL, Class, Type, Value], ...]，每个值都是str
 若 Type 为‘A’ ， 递归查找，返回所有记录
 若 Type 为'CNAME'或'MX'， 返回第一条
 否则直接返回所有记录
