@@ -45,7 +45,6 @@ db.search_log(self, start_time, end_time)
 class DBFacade(object):
     instance = None
     _lock = threading.Lock()    # for table Records
-    _lock2 = threading.Lock()   # for table Log
 
     def __new__(cls, *args, **kwargs):
         if cls.instance is None:
@@ -93,13 +92,12 @@ class DBFacade(object):
     def exist_in_Records(self, record):
         self._lock.acquire()
         query = '''
-        select count(*) from Records 
-        where Name = '%s' and Type = '%s' and Value = '%s' 
+        select 1 from Records where Name='%s' and Type='%s'and Value='%s'
         ''' %(record[0], record[3], record[4])
         self._cursor.execute(query)
-        res = self._cursor.fetchone()[0]
+        res = self._cursor.fetchone()
         self._lock.release()
-        if res == 0:
+        if res == None:
             return False
         else:
             return True
@@ -112,7 +110,10 @@ class DBFacade(object):
         where Name = '%s' and Type = '%s'
         '''% (_name, _type)
         self._cursor.execute(query)
-        get = self._cursor.fetchall()
+        try:
+            get = self._cursor.fetchall()
+        except Exception as e:
+            print('eeeeeeeeee',e)
         self._lock.release()
         if get == None:
             res = []
@@ -120,6 +121,7 @@ class DBFacade(object):
             res = []
             for one_valueinTuple in get:
                 res.append(one_valueinTuple[0])
+        
         return res
 
     #直接由name, type查找结果
@@ -147,13 +149,13 @@ class DBFacade(object):
             self.ret_list.append(first_try[0])           #有A，加入返回记录
             return True                             #查询成功
         else:                                       #没有A，找CNAME
-            second_try = self.get_value(_name, 'CNAME')     #second_try 找 CNAME 的 VALUE
+            second_try = self.get_record(_name, 'CNAME')    #second_try 找 CNAME 的 记录  
             if second_try == []:
                 self.ret_list.clear()
                 return False                           #没有CNAME，本次查询失败
             else:
-                self.ret_list.append(self.get_record(_name, 'CNAME')[0])
-                return self.query_for_A(second_try[0])  #否则以查到的CNAME为新NAME继续查询
+                self.ret_list.append(second_try[0])
+                return self.query_for_A(second_try[0][4])  #否则以 CNAME 查到的的 VALUE 为新NAME继续查询
 
     #按 type 对 name 进行一次查询，返回整个记录
     def query(self, _name, _type):
@@ -163,51 +165,10 @@ class DBFacade(object):
                 return self.ret_list
             else:
                 return []
-
-        
-        elif _type == 'CNAME' or _type == 'MX':
-            one_try = self.get_record(_name, _type)
-            if one_try == []:
-                return one_try
-            else:
-                return [one_try[0]]     #返回找到的最前一个
         
         else:
             return self.get_record(_name, _type)
 
-
-    #插入一条日志，参数：请求方的ip, port, 请求的域名， DNSRelay是否向DNSServer请求的标志。日志记录会自动加入这条日志的产生时间。
-    def insert_log(self, request_ip, request_port, domain_name, flag):
-        self._lock2.acquire()
-        t = time.strftime("%Y-%m-%d %H:%M:%S",self.localTime())
-        query = '''
-        insert into Log 
-        (_time, IP, _port, Domain_name, DNSFlag) 
-        values 
-        ('%s', '%s', '%s', '%s', %d) 
-        '''%(t, request_ip, request_port, domain_name, flag)
-        try:
-            self._cursor.execute(query)
-            self._db.commit()
-            print('插入新日志：%s -- %s:%s -- %s, %s'%(t, request_ip, request_port, domain_name, flag))
-        except Exception as e:
-            print(e)
-        self._lock2.release()
-    
-    def search_log(self, start_time, end_time):
-        self._lock2.acquire()
-        query = '''
-        select _time, IP, _port, Domain_name, DNSFlag  from Log
-        where _time between '%s' and '%s'
-        '''%(start_time, end_time)
-        self._cursor.execute(query)
-        res = self._cursor.fetchall()
-        self._lock2.release()
-        if res == None:
-            res = []
-        else:
-            pass
-        return res
     
     #TTL-1，减到0就删除这条记录
     def update_TTL(self):
@@ -219,9 +180,8 @@ class DBFacade(object):
         try:
             self._cursor.execute(query)
             self._db.commit()
-            print('minus ttl')
         except Exception as e:
-            print(e)
+            print('ccccccccccc',e)
         
         query = '''
         delete from Records
@@ -230,12 +190,23 @@ class DBFacade(object):
         try:
             self._cursor.execute(query)
             self._db.commit()
-            print('delete if needed')
         except Exception as e:
-            print(e)
-        
+            print('aaaaaaa',e)
+        #print('DB: TTL--')
         self._lock.release()
 
+
+    def fetch_table(self):
+        self._lock.acquire()
+        query = '''
+        select *  from Records
+        '''
+        self._cursor.execute(query)
+        res_records = self._cursor.fetchall()
+        self._lock.release()
+        if res_records == None:
+            res_records = []
+        return res_records
 
     def create_table(self):
         query = '''
@@ -251,32 +222,18 @@ class DBFacade(object):
         try:
             self._cursor.execute(query)
             self._db.commit()
-        except Exception as e:
-            print(e)
-
-        query = '''
-        create table Log(
-            _time datetime primary key,
-            IP varchar(50),
-            _port int,
-            Domain_name varchar(50),
-            DNSFlag bool
-        );
-        '''
-        try:
-            self._cursor.execute(query)
-            self._db.commit()
+            print('成功建表！')
         except Exception as e:
             print(e)
 
 
-'''
-db = DBFacade()
 
-#db.create_table()      #首次运行后请注释
+if __name__ == '__main__':
+    db = DBFacade()
+    db.create_table()      #首次运行后请注释
 
 #test
-
+'''
 record1 = ('name', 1 ,'in', 'CNAME', 'name1')
 record2 = ('name1', 2, 'in', 'CNAME', 'name2')
 record3 = ('name2', 3, 'in', 'A', '123.1.2.3')
