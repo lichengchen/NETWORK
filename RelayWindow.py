@@ -19,17 +19,20 @@ class RelayWindow(QMainWindow, Ui_MainWindow):
         self.startBtn.clicked.connect(self.on_start)
 
         self.timer=QTimer()
-        self.timer.timeout.connect(self.updateTables)
+        self.timer.timeout.connect(self.on_refresh)
+        self.checkBox.stateChanged.connect(self.on_checkBox_checked)
+        self.refreshBtn.clicked.connect(self.on_refresh)
 
         self.dnsRelay = DNSRelay()
         self.dnsRelayThread = DNSRelayThread(self.dnsRelay)
+
+        self.updateTable()
     
     def on_start(self):
         self.startBtn.setEnabled(False)
         self.dnsRelayThread.start()
-        self.timer.start()
     
-    def updateTables(self):
+    def updateTable(self):
         db = DBFacade()
         records = db.fetch_table()
         self.tableWidget.setRowCount(len(records))
@@ -38,7 +41,17 @@ class RelayWindow(QMainWindow, Ui_MainWindow):
             for j in range(0, 5):
                 txt = str(records[i][j])
                 self.tableWidget.setItem(i,j,QTableWidgetItem(txt))
-
+    
+    def on_checkBox_checked(self, flag):
+        if flag:
+            self.timer.start()
+        else:
+            self.timer.stop()
+        
+    def on_refresh(self):
+        self.refreshBtn.setEnabled(False)
+        self.updateTable()
+        self.refreshBtn.setEnabled(True)
 
 class DNSRelayThread (threading.Thread):
     def __init__(self, dnsRelay):

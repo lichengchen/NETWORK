@@ -8,7 +8,7 @@ import threading
 
 # 其他模块的调用方法
 from DBFacde import DBFacade
-db = DBFacade()
+db = DBFacade()     #db 是单例
 
 
 # 插入记录
@@ -16,29 +16,22 @@ db.insert_record(answer_list)
 参数：[(Name, TTL, Class, Type, Value), ...]
 
 
-# 查询：按 Type 对 Name 进行一次查询，返回整个记录 
+# 查询：按 Type 对 Name 进行一次查询，返回所有记录 
 db.query(Name, Type)
-参数：两个str  
+参数：两个str
 返回值：[[Name, TTL, Class, Type, Value], ...]，每个值都是str
-若 Type 为‘A’ ， 递归查找，返回所有记录
-若 Type 为'CNAME'或'MX'， 返回第一条
+若 Type 为‘A’ ， 递归查找，直到返回所有记录
 否则直接返回所有记录
 没有找到记录返回 []
 
 
-# 更新TTL-1，减到0就删除这条记录，应该每秒调用一次这个函数
+# 更新TTL-1，减到0就删除这条记录，DNSRelay 应该每秒调用一次这个函数
 db.update_TTL()
 
 
-# 插入日志
-db.insert_log(addr.ip, addr.port, Name, True/False)
-参数：请求方的ip,port,请求的域名，DNSRelay是否向DNSServer请求的标志。日志记录会自动加入这条日志的产生时间。
-
-
-# 获取日志
-db.search_log(self, start_time, end_time)
-参数：要查询的起止时间（格式为标准时间字符串--形如'2019-07-01 00:00:00'）
-返回：list，每一项为 (time, addr.ip, addr.port, Name, True/False)
+# 查看数据库
+db.fetch_table()
+返回：[(Name, TTL, Class, Type, Value), ...]
 
 '''
 
@@ -85,7 +78,8 @@ class DBFacade(object):
                 self._db.commit()
                 print("插入新记录('%s', %d, '%s', '%s', '%s')"%(record[0], int(record[1]), record[2], record[3], record[4]))
             except Exception as e:
-                print('未插入--',e)
+                pass
+                #print('未插入--',e)
             self._lock.release()
 
     #判断一条记录是否存在
@@ -113,7 +107,7 @@ class DBFacade(object):
         try:
             get = self._cursor.fetchall()
         except Exception as e:
-            print('eeeeeeeeee',e)
+            print('Exception1:',e)
         self._lock.release()
         if get == None:
             res = []
@@ -181,18 +175,28 @@ class DBFacade(object):
             self._cursor.execute(query)
             self._db.commit()
         except Exception as e:
-            print('ccccccccccc',e)
+            print('Exception2',e)
         
         query = '''
-        delete from Records
+        select count(*) from Records
         where TTL <= 0
         '''
-        try:
-            self._cursor.execute(query)
-            self._db.commit()
-        except Exception as e:
-            print('aaaaaaa',e)
-        #print('DB: TTL--')
+        self._cursor.execute(query)
+        res = self._cursor.fetchone()
+        if res!=None and res[0]!= 0:    #TTL到期删除
+            query = '''
+            delete from Records
+            where TTL <= 0
+            '''
+            try:
+                self._cursor.execute(query)
+                self._db.commit()
+                print('-删除', res[0], '条到期记录')
+            except Exception as e:
+                print('Exception3',e)
+        else:
+            print('-')
+        
         self._lock.release()
 
 
@@ -230,23 +234,4 @@ class DBFacade(object):
 
 if __name__ == '__main__':
     db = DBFacade()
-    db.create_table()      #首次运行后请注释
-
-#test
-'''
-record1 = ('name', 1 ,'in', 'CNAME', 'name1')
-record2 = ('name1', 2, 'in', 'CNAME', 'name2')
-record3 = ('name2', 3, 'in', 'A', '123.1.2.3')
-records = [record1, record2,record3]
-
-db.insert_records(records)
-
-
-print(db.query('name','A'))
-print(db.query('name3','A'))
-
-db.insert_log('127.1.1.1', 8080, 'www.baidu.com', False)
-dic = db.search_log('2019-07-01 00:00:00', time.strftime("%Y-%m-%d %H:%M:%S",db.localTime()))
-print('查到', len(dic), '条日志')
-print('最后一条：', dic[-1])
-'''
+    db.create_table()

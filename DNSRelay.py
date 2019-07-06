@@ -25,8 +25,8 @@ class DNSRelay:
                 # print('c_socket: Received from %s:%s.' % addr, data)
                 newThread = HandleThread(Handler(addr, data, self.c_socket, self.send_ip, self.send_port))
                 newThread.start()
-            except Exception as e:
-                print(e)
+            except:
+                pass
             
 
 class Handler:
@@ -44,7 +44,7 @@ class Handler:
         #查询数据库
     #    print(data_dic)
         db = DBFacade()
-        _name , _type = data_dic['QUESTION'][0][0],data_dic['QUESTION'][0][2]
+        _name , _type = data_dic['QUESTION'][0][0],data_dic['QUESTION'][0][2]   #原始请求
         answer = db.query(_name , _type)
         flag = (answer == [])
         #answer = [['www.shifen.com.','222','IN','A','39.20.1.1'],['www.shifen.com.','222','IN','A','25.69.6.3']]  
@@ -69,6 +69,7 @@ class Handler:
             data_send = message.from_text(data_send)
             data_send = data_send.to_wire()
             self.c_socket.sendto(data_send, self.c_addr)     #向客户端直接发回的情况
+            remark = 'Local'
           
         else:
             self.s_socket = socket(AF_INET, SOCK_DGRAM)  # 与DNS服务器通信的套接字
@@ -77,7 +78,7 @@ class Handler:
     #        print("----------------")
             self.s_socket.sendto(self.c_data, (self.send_ip, self.send_port))      #向服务器发送的情况
             data, addr = self.s_socket.recvfrom(1024)     #读回DNS服务器的返回
-            self.s_socket.close()
+            self.s_socket.close()       #获取DNS的返回后关闭与服务器通信的socket
             # print("1111\n")
             # print(data)
             # print(message.from_wire(data))
@@ -87,7 +88,10 @@ class Handler:
             db.insert_records(data_dic["ANSWER"])
             #发回到客户端
             self.c_socket.sendto(data, self.c_addr)
-        logger.info('%s:%s -- %s --%s --%s'%(self.c_addr[0], self.c_addr[1], _name , _type , flag))
+            remark = 'Remote'
+        
+        #handler做完了一项工作，插入日志，退出
+        logger.info('%s:%s      %s      %s      %s'%(self.c_addr[0], self.c_addr[1], _name , _type, remark))
             
 
     def data_process(self,data_get):
