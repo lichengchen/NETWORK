@@ -1,15 +1,16 @@
-from socket import *
+import socket
 from dns import message
 from DBFacade import DBFacade
 from MyLog import logger
 
 class Handler:
-    def __init__(self, c_addr, data, c_socket, send_ip, send_port):
+    def __init__(self, c_addr, data, c_socket, send_ip, send_port, timeout_time = 3):
         self.c_addr = c_addr
         self.c_data = data
         self.c_socket = c_socket
         self.send_ip = send_ip
         self.send_port = send_port
+        self.timeout_time = timeout_time
         
        
     def run(self):
@@ -25,13 +26,20 @@ class Handler:
     #    print("---------------ans-----------")
     #    print("answer: ",answer)
 
-        if flag == False:    
+        if flag == False:    #用数据库查到的数据向客户端发送 
     #        print("---------------")
     #        print("send case 1")
-    #        print("----------------")                                       #查数据库向客户端发送       
-            if answer[0][3] == 'MX':                                #answer 的处理 （MX）
+    #        print("----------------")     
+
+            remark = 'Local'
+            if answer[0][4] == '0.0.0.0' or answer[0][4] == '0:0:0:0:0:0:0:0':           #拦截不良网站
+                print('拦截不良网站：', _name)
+                remark = 'Rejected'
+
+            elif answer[0][3] == 'MX':                                #answer 的处理 （MX）
                 for i in range(len(answer)):
-                    answer[i].insert(4,'5')                                                  
+                    answer[i].insert(4,'5')       
+                                           
             temp_message = message.from_wire(self.c_data)
             temp_message = message.make_response(temp_message).to_text()
             temp_list = temp_message.split("\n")
@@ -42,27 +50,34 @@ class Handler:
             data_send = '\n'.join(temp_list)
             data_send = message.from_text(data_send)
             data_send = data_send.to_wire()
-            self.c_socket.sendto(data_send, self.c_addr)     #向客户端直接发回的情况
-            remark = 'Local'
+            self.c_socket.sendto(data_send, self.c_addr)     #向客户端发回
+            
           
-        else:
-            self.s_socket = socket(AF_INET, SOCK_DGRAM)  # 与DNS服务器通信的套接字
+        else:       #请求DNS服务器
+            self.s_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # 与DNS服务器通信的套接字
     #        print("---------------")
     #        print("send case 2")
     #        print("----------------")
-            self.s_socket.sendto(self.c_data, (self.send_ip, self.send_port))      #向服务器发送的情况
-            data, addr = self.s_socket.recvfrom(1024)     #读回DNS服务器的返回
-            self.s_socket.close()       #获取DNS的返回后关闭与服务器通信的socket
-            # print("1111\n")
-            # print(data)
-            # print(message.from_wire(data))
-            data_dic = self.data_process(data)
-            # 存数据库  data_dic['ANSWER']
-            db = DBFacade()
-            db.insert_records(data_dic["ANSWER"])
-            #发回到客户端
-            self.c_socket.sendto(data, self.c_addr)
-            remark = 'Remote'
+            self.s_socket.sendto(self.c_data, (self.send_ip, self.send_port))      #向服务器发送
+            self.s_socket.settimeout(self.timeout_time)         #设置超时时间
+
+            try:
+                data, addr = self.s_socket.recvfrom(1024)     #读回DNS服务器的返回
+                remark = 'Remote'
+                # print(data)
+                # print(message.from_wire(data))
+                data_dic = self.data_process(data)
+                # 存数据库  data_dic['ANSWER']
+                db = DBFacade()
+                db.insert_records(data_dic["ANSWER"])
+                #发回到客户端
+                self.c_socket.sendto(data, self.c_addr)
+
+            except socket.timeout:                            #DNS超时
+                print('请求超时：', _name)
+                remark = 'TimeOut'
+
+            self.s_socket.close()       #获取DNS的返回后（或超时）关闭与服务器通信的socket
         
         #handler做完了一项工作，插入日志，退出
         logger.info('%s:%s      %s      %s      %s'%(self.c_addr[0], self.c_addr[1], _name , _type, remark))

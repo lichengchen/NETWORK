@@ -1,6 +1,7 @@
 import sqlite3
 import time
 import threading
+import sys
 
 '''
 
@@ -61,13 +62,8 @@ class DBFacade(object):
 
     #将应答列表插入记录表
     def insert_records(self, answer_list):
-        for answer in answer_list:
-            self.insert_one_record(answer)
-
-    #将一条记录插入记录表
-    def insert_one_record(self, record):
-        if not self.exist_in_Records(record):
-            self._lock.acquire()
+        self._lock.acquire()
+        for record in answer_list:
             query = '''
             insert into Records 
             (Name, TTL, Class, Type, Value) 
@@ -75,12 +71,12 @@ class DBFacade(object):
             ('%s', %d, '%s', '%s', '%s')''' %(record[0], int(record[1]), record[2], record[3], record[4])
             try:
                 self._cursor.execute(query)
-                self._db.commit()
                 print("插入新记录('%s', %d, '%s', '%s', '%s')"%(record[0], int(record[1]), record[2], record[3], record[4]))
-            except Exception as e:
+            except:
                 pass
-                #print('未插入--',e)
-            self._lock.release()
+        self._db.commit()
+        self._lock.release()
+            
 
     #判断一条记录是否存在
     def exist_in_Records(self, record):
@@ -170,6 +166,7 @@ class DBFacade(object):
         query = '''
         update Records
         set TTL = TTL - 1
+        where Value!='0.0.0.0' and Value!='0:0:0:0:0:0:0:0'
         '''
         try:
             self._cursor.execute(query)
@@ -191,11 +188,12 @@ class DBFacade(object):
             try:
                 self._cursor.execute(query)
                 self._db.commit()
-                print('-删除', res[0], '条到期记录')
+                print('删除', res[0], '条到期记录')
             except Exception as e:
                 print('Exception3',e)
         else:
-            print('-')
+            sys.stdout.write('-')
+            sys.stdout.flush()
         
         self._lock.release()
 
@@ -230,8 +228,45 @@ class DBFacade(object):
         except Exception as e:
             print(e)
 
+    def init_table_from_file(self):
+        with open('dnsrelay.txt', 'r') as f:
+            self._lock.acquire()
+            lines = f.readlines()
+            for line in lines:
+                line = line.strip('\n')
+                get = line.split(' ')
+                value = get[0]
+                name = get[-1]
+                if value!='' and name!='':
+                    name = name + '.'
+
+                    query = '''
+                    insert into Records 
+                    (Name, TTL, Class, Type, Value) 
+                    values 
+                    ('%s', %d, '%s', '%s', '%s')''' %(name, 10000, 'IN', 'A',value)
+                    try:
+                        self._cursor.execute(query)
+                    except Exception as e:
+                        print('init_error in %s, %s'%(name, value), e)
+                    
+                    if value == '0.0.0.0':
+                        query = '''
+                        insert into Records 
+                        (Name, TTL, Class, Type, Value) 
+                        values 
+                        ('%s', %d, '%s', '%s', '%s')''' %(name, 10000, 'IN', 'AAAA','0:0:0:0:0:0:0:0')
+                        try:
+                            self._cursor.execute(query)
+                        except Exception as e:
+                            print('init_error in %s, %s'%(name, value), e)
+                    
+            self._db.commit()
+            self._lock.release()
+
 
 
 if __name__ == '__main__':
     db = DBFacade()
     db.create_table()
+    db.init_table_from_file()
